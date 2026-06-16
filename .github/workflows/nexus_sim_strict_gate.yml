@@ -1,0 +1,38 @@
+name: Nexus Simulation (Strict Gate)
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  nexus-sim:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore
+
+      # If you rely on Python gRPC service in CI, you can start it here.
+      # By default we run the offline stub engine (useGrpc=false) to keep CI deterministic.
+      - name: Run Nexus sim pack (strict, offline stub)
+        run: |
+          dotnet run --project tools/NexusSimRunner/NexusSimRunner.csproj -- \
+            --packRoot nexus-sim/scenario-packs/inventory_transfers_v1 \
+            --outRoot nexus-sim/runs \
+            --mode strict \
+            --engineVersion ${{ github.sha }} \
+            --useGrpc false
+
+      - name: Upload run bundles (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-sim-runs
+          path: nexus-sim/runs

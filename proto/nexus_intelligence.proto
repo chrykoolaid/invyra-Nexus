@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+package invyra.nexus.v1;
+
+option csharp_namespace = "Invyra.Nexus.Grpc";
+
+service NexusIntelligence {
+  rpc EvaluateDecision (NexusDecisionRequest) returns (NexusDecisionResponse);
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  string status = 1;        // "ok" | "degraded"
+  string engine_version = 2;
+}
+
+enum NexusDecisionType {
+  NEXUS_DECISION_TYPE_UNSPECIFIED = 0;
+  PRE_FAILURE_DETECTION = 1;
+  DECISION_QUALITY_SCORE = 2;
+}
+
+enum NexusOutcome {
+  NEXUS_OUTCOME_UNSPECIFIED = 0;
+  SILENT = 1;
+  ADVISORY = 2;
+  HIGH_RISK = 3;
+  REFUSAL = 4;
+  INCIDENT = 5;
+}
+
+enum NexusRiskBand {
+  NEXUS_RISK_BAND_UNSPECIFIED = 0;
+  LOW = 1;
+  MEDIUM = 2;
+  HIGH = 3;
+}
+
+message NexusSignal {
+  string type = 1;
+  string window = 2; // optional, empty allowed
+  oneof value {
+    bool bool_value = 10;
+    double number_value = 11;
+    string string_value = 12;
+    bool null_value = 13; // set true to represent null/missing
+  }
+}
+
+message NexusDecisionRequest {
+  string decision_id = 1;
+  NexusDecisionType decision_type = 2;
+  string module = 3;
+  string timestamp_iso = 4;
+  string store_id = 5;
+  string timezone = 6;
+  repeated NexusSignal signals = 7;
+  map<string,string> context = 8;
+}
+
+message NexusExplanation {
+  string summary = 1;
+  repeated string factor_codes = 2;
+  map<string,string> evidence = 3;
+}
+
+message NexusDecisionResponse {
+  string decision_id = 1;
+  string engine_version = 2;
+  NexusOutcome outcome = 3;
+  double failure_likelihood = 4;
+  double confidence = 5;
+  repeated string dominant_factors = 6;
+  NexusExplanation explain = 7;
+  repeated string missing_signals = 8;
+  NexusRiskBand risk_band = 9;
+}
