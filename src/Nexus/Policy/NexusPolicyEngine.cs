@@ -60,7 +60,7 @@ public sealed class NexusPolicyEngine
         // TRUST GATE (DQS-driven):
         // - If we don't have enough scored history, default to shadow-only.
         // - If trust score drops below threshold, suppress surfacing (shadow-only).
-        var moduleRecords = _dqsStore.ByModule(req.Module), StringComparison.OrdinalIgnoreCase)).ToList();
+        var moduleRecords = _dqsStore.ByModule(req.Module).ToList();
         if (moduleRecords.Count < _opt.TrustMinSampleSize)
         {
             return new NexusPolicyResult(
