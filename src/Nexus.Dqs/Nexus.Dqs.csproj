@@ -4,8 +4,4 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Nexus.Persistence\Nexus.Persistence.csproj" />
-  </ItemGroup>
 </Project>
