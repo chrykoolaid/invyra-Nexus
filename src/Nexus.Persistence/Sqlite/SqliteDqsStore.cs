@@ -52,10 +52,10 @@ INSERT INTO nexus_dqs (
         cmd.Parameters.AddWithValue("$outcome_observed_at", record.OutcomeObservedAt?.ToString("O") ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("$expected_outcome", record.ExpectedOutcome);
         cmd.Parameters.AddWithValue("$actual_outcome", record.ActualOutcome);
-        cmd.Parameters.AddWithValue("$confidence", record.Confidence);
-        cmd.Parameters.AddWithValue("$verdict", record.Verdict);
+        cmd.Parameters.AddWithValue("$confidence", record.ConfidenceAtDecision);
+        cmd.Parameters.AddWithValue("$verdict", record.Verdict.ToString());
         cmd.Parameters.AddWithValue("$score", record.Score);
-        cmd.Parameters.AddWithValue("$notes_json", JsonSerializer.Serialize(record.Notes ?? new Dictionary<string, string>()));
+        cmd.Parameters.AddWithValue("$notes_json", JsonSerializer.Serialize(record.Notes ?? Array.Empty<string>()));
 
         cmd.ExecuteNonQuery();
     }
@@ -96,8 +96,11 @@ ORDER BY id ASC;";
 
         while (r.Read())
         {
-            var notesJson = r.IsDBNull(9) ? "{}" : r.GetString(9);
-            IReadOnlyDictionary<string, string>? notes = JsonSerializer.Deserialize<Dictionary<string, string>>(notesJson);
+            var notesJson = r.IsDBNull(9) ? "[]" : r.GetString(9);
+            var notes = JsonSerializer.Deserialize<List<string>>(notesJson) ?? new List<string>();
+            var verdict = Enum.TryParse<DqsVerdict>(r.GetString(7), out var parsedVerdict)
+                ? parsedVerdict
+                : DqsVerdict.Degraded;
 
             rows.Add(new DqsRecord(
                 DecisionId: r.GetString(0),
@@ -106,8 +109,8 @@ ORDER BY id ASC;";
                 OutcomeObservedAt: r.IsDBNull(3) ? null : DateTimeOffset.Parse(r.GetString(3)),
                 ExpectedOutcome: r.GetString(4),
                 ActualOutcome: r.GetString(5),
-                Confidence: r.GetDouble(6),
-                Verdict: r.GetString(7),
+                ConfidenceAtDecision: r.GetDouble(6),
+                Verdict: verdict,
                 Score: r.GetDouble(8),
                 Notes: notes
             ));
