@@ -7,6 +7,8 @@ var builder = WebApplication.CreateBuilder(args);
 // Config
 var dbPath = builder.Configuration["Nexus:Sqlite:DbPath"] ?? "nexus-sim/nexus.db";
 var adminKey = builder.Configuration["Nexus:AdminApi:AdminKey"] ?? "";
+var auditorKey = builder.Configuration["Nexus:AdminApi:AuditorKey"] ?? "";
+var viewerKey = builder.Configuration["Nexus:AdminApi:ViewerKey"] ?? "";
 
 // Services
 var db = new SqliteDb(dbPath);
@@ -18,13 +20,17 @@ builder.Services.AddSingleton<DqsTrustAggregator>();
 
 var app = builder.Build();
 
-// ---- AUTH (API Key, read-only) ----
+// ---- AUTH (API Key + RBAC, read-only) ----
 // Header: X-Nexus-Admin-Key
 // - /health is open
-// - all other endpoints require valid key
-if (string.IsNullOrWhiteSpace(adminKey) || adminKey == "CHANGE_ME_LONG_RANDOM")
+// - all other endpoints require a valid configured key
+// - role is inferred from the matched key
+// - AdminKey is backward-compatible and grants full Admin access
+var configuredKeys = BuildConfiguredKeys(adminKey, auditorKey, viewerKey);
+
+if (configuredKeys.Count == 0)
 {
-    app.Logger.LogWarning("Nexus Admin API: AdminKey is not set or is using default. Set Nexus:AdminApi:AdminKey before exposing beyond localhost.");
+    app.Logger.LogWarning("Nexus Admin API: no production Admin API keys are configured. Set Nexus:AdminApi keys before exposing beyond localhost.");
 }
 
 app.Use(async (ctx, next) =>
@@ -36,15 +42,65 @@ app.Use(async (ctx, next) =>
     }
 
     var provided = ctx.Request.Headers["X-Nexus-Admin-Key"].ToString();
-    if (string.IsNullOrWhiteSpace(adminKey) || string.IsNullOrWhiteSpace(provided) || !CryptographicEquals(adminKey, provided))
+    var role = ResolveRole(configuredKeys, provided);
+    if (role is null)
     {
         ctx.Response.StatusCode = 401;
         await ctx.Response.WriteAsJsonAsync(new { error = "unauthorized" });
         return;
     }
 
+    var requiredRole = RequiredRoleFor(ctx.Request.Path);
+    if (!HasRequiredRole(role.Value, requiredRole))
+    {
+        ctx.Response.StatusCode = 403;
+        await ctx.Response.WriteAsJsonAsync(new { error = "forbidden", required_role = requiredRole.ToString(), actual_role = role.Value.ToString() });
+        return;
+    }
+
+    ctx.Items["NexusAdminRole"] = role.Value.ToString();
     await next();
 });
+
+static List<ApiKeyBinding> BuildConfiguredKeys(string adminKey, string auditorKey, string viewerKey)
+{
+    var keys = new List<ApiKeyBinding>();
+    AddKey(keys, adminKey, NexusAdminRole.Admin);
+    AddKey(keys, auditorKey, NexusAdminRole.Auditor);
+    AddKey(keys, viewerKey, NexusAdminRole.Viewer);
+    return keys;
+}
+
+static void AddKey(List<ApiKeyBinding> keys, string key, NexusAdminRole role)
+{
+    if (string.IsNullOrWhiteSpace(key) || key == "CHANGE_ME_LONG_RANDOM") return;
+    keys.Add(new ApiKeyBinding(key, role));
+}
+
+static NexusAdminRole? ResolveRole(IReadOnlyList<ApiKeyBinding> keys, string provided)
+{
+    if (string.IsNullOrWhiteSpace(provided)) return null;
+
+    foreach (var key in keys)
+    {
+        if (CryptographicEquals(key.Key, provided)) return key.Role;
+    }
+
+    return null;
+}
+
+static NexusAdminRole RequiredRoleFor(PathString path)
+{
+    if (path.StartsWithSegments("/trust")) return NexusAdminRole.Viewer;
+    if (path.StartsWithSegments("/dqs")) return NexusAdminRole.Auditor;
+    if (path.StartsWithSegments("/audit")) return NexusAdminRole.Auditor;
+    return NexusAdminRole.Admin;
+}
+
+static bool HasRequiredRole(NexusAdminRole actual, NexusAdminRole required)
+{
+    return actual >= required;
+}
 
 static bool CryptographicEquals(string a, string b)
 {
@@ -55,6 +111,15 @@ static bool CryptographicEquals(string a, string b)
     var diff = 0;
     for (int i = 0; i < ba.Length; i++) diff |= ba[i] ^ bb[i];
     return diff == 0;
+}
+
+internal readonly record struct ApiKeyBinding(string Key, NexusAdminRole Role);
+
+internal enum NexusAdminRole
+{
+    Viewer = 1,
+    Auditor = 2,
+    Admin = 3
 }
 // ---- END AUTH ----
 
