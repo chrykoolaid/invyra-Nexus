@@ -16,8 +16,8 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      - name: Restore
-        run: dotnet restore
+      - name: Restore Nexus simulation runner
+        run: dotnet restore tools/NexusSimRunner/NexusSimRunner.csproj
 
       # If you rely on Python gRPC service in CI, you can start it here.
       # By default we run the offline stub engine (useGrpc=false) to keep CI deterministic.
