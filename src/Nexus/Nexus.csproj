@@ -7,10 +7,24 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Examples/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Nexus.Dqs\Nexus.Dqs.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Nexus.Persistence\Nexus.Persistence.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.28.2" />
+    <PackageReference Include="Grpc.Net.Client" Version="2.66.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.66.0" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="..\..\proto\nexus_intelligence.proto" GrpcServices="Client" />
   </ItemGroup>
 </Project>

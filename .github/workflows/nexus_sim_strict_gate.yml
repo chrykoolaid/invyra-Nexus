@@ -16,19 +16,29 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      - name: Restore
-        run: dotnet restore
+      - name: Restore Nexus simulation runner
+        run: |
+          mkdir -p artifacts/simulation-logs
+          dotnet restore tools/NexusSimRunner/NexusSimRunner.csproj --verbosity normal 2>&1 | tee artifacts/simulation-logs/restore.log
 
       # If you rely on Python gRPC service in CI, you can start it here.
       # By default we run the offline stub engine (useGrpc=false) to keep CI deterministic.
       - name: Run Nexus sim pack (strict, offline stub)
         run: |
+          mkdir -p artifacts/simulation-logs
           dotnet run --project tools/NexusSimRunner/NexusSimRunner.csproj -- \
             --packRoot nexus-sim/scenario-packs/inventory_transfers_v1 \
             --outRoot nexus-sim/runs \
             --mode strict \
             --engineVersion ${{ github.sha }} \
-            --useGrpc false
+            --useGrpc false 2>&1 | tee artifacts/simulation-logs/run.log
+
+      - name: Upload simulation logs (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-simulation-logs
+          path: artifacts/simulation-logs
 
       - name: Upload run bundles (always)
         if: always()

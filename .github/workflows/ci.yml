@@ -1,0 +1,40 @@
+name: Nexus CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  dotnet-build:
+    name: .NET build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: |
+          mkdir -p artifacts/ci-logs
+          dotnet restore src/Nexus.AdminApi/Nexus.AdminApi.csproj 2>&1 | tee artifacts/ci-logs/restore.log
+
+      - name: Build
+        run: |
+          mkdir -p artifacts/ci-logs
+          dotnet build src/Nexus.AdminApi/Nexus.AdminApi.csproj --configuration Release --no-restore 2>&1 | tee artifacts/ci-logs/build.log
+
+      - name: Upload CI logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-ci-logs
+          path: artifacts/ci-logs
