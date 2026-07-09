@@ -26,11 +26,17 @@ jobs:
         run: |
           mkdir -p artifacts/ci-logs
           dotnet restore src/Nexus.AdminApi/Nexus.AdminApi.csproj 2>&1 | tee artifacts/ci-logs/restore.log
+          dotnet restore tests/Nexus.AdminApi.Tests/Nexus.AdminApi.Tests.csproj 2>&1 | tee artifacts/ci-logs/test-restore.log
 
       - name: Build
         run: |
           mkdir -p artifacts/ci-logs
           dotnet build src/Nexus.AdminApi/Nexus.AdminApi.csproj --configuration Release --no-restore 2>&1 | tee artifacts/ci-logs/build.log
+
+      - name: Test
+        run: |
+          mkdir -p artifacts/ci-logs
+          dotnet test tests/Nexus.AdminApi.Tests/Nexus.AdminApi.Tests.csproj --configuration Release --no-restore 2>&1 | tee artifacts/ci-logs/test.log
 
       - name: Upload CI logs
         if: always()
