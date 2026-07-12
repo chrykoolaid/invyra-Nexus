@@ -1,3 +1,5 @@
+using Nexus.AdminApi.Auth;
+
 namespace Nexus.AdminApi.Tests;
 
 public sealed class AdminApiAuthorizationRulesTests
@@ -29,13 +31,9 @@ public sealed class AdminApiAuthorizationRulesTests
     }
 
     [Fact]
-    public void ResolveRole_IgnoresMissingAndPlaceholderKeys()
+    public void BuildConfiguredKeys_IgnoresMissingAndPlaceholderKeys()
     {
-        var keys = AdminApiAuthorizationRules.BuildConfiguredKeys(
-            adminKey: "CHANGE_ME_LONG_RANDOM",
-            auditorKey: "",
-            viewerKey: "   ");
-
+        var keys = AdminApiAuthorizationRules.BuildConfiguredKeys("CHANGE_ME_LONG_RANDOM", "", "   ");
         Assert.Empty(keys);
     }
 
@@ -45,85 +43,14 @@ public sealed class AdminApiAuthorizationRulesTests
     [InlineData("viewer-key", NexusAdminRole.Viewer)]
     public void ResolveRole_ReturnsMatchedRole(string provided, NexusAdminRole expected)
     {
-        var keys = AdminApiAuthorizationRules.BuildConfiguredKeys(
-            adminKey: "admin-key",
-            auditorKey: "auditor-key",
-            viewerKey: "viewer-key");
-
+        var keys = AdminApiAuthorizationRules.BuildConfiguredKeys("admin-key", "auditor-key", "viewer-key");
         Assert.Equal(expected, AdminApiAuthorizationRules.ResolveRole(keys, provided));
     }
 
     [Fact]
     public void ResolveRole_ReturnsNullForInvalidKey()
     {
-        var keys = AdminApiAuthorizationRules.BuildConfiguredKeys(
-            adminKey: "admin-key",
-            auditorKey: "auditor-key",
-            viewerKey: "viewer-key");
-
+        var keys = AdminApiAuthorizationRules.BuildConfiguredKeys("admin-key", "auditor-key", "viewer-key");
         Assert.Null(AdminApiAuthorizationRules.ResolveRole(keys, "wrong-key"));
     }
-}
-
-internal static class AdminApiAuthorizationRules
-{
-    public static IReadOnlyList<ApiKeyBinding> BuildConfiguredKeys(string adminKey, string auditorKey, string viewerKey)
-    {
-        var keys = new List<ApiKeyBinding>();
-        AddKey(keys, adminKey, NexusAdminRole.Admin);
-        AddKey(keys, auditorKey, NexusAdminRole.Auditor);
-        AddKey(keys, viewerKey, NexusAdminRole.Viewer);
-        return keys;
-    }
-
-    public static NexusAdminRole? ResolveRole(IReadOnlyList<ApiKeyBinding> keys, string provided)
-    {
-        if (string.IsNullOrWhiteSpace(provided)) return null;
-
-        foreach (var key in keys)
-        {
-            if (CryptographicEquals(key.Key, provided)) return key.Role;
-        }
-
-        return null;
-    }
-
-    public static NexusAdminRole? RequiredRoleFor(string path)
-    {
-        if (path.StartsWith("/health", StringComparison.OrdinalIgnoreCase)) return null;
-        if (path.StartsWith("/trust", StringComparison.OrdinalIgnoreCase)) return NexusAdminRole.Viewer;
-        if (path.StartsWith("/dqs", StringComparison.OrdinalIgnoreCase)) return NexusAdminRole.Auditor;
-        if (path.StartsWith("/audit", StringComparison.OrdinalIgnoreCase)) return NexusAdminRole.Auditor;
-        return NexusAdminRole.Admin;
-    }
-
-    public static bool HasRequiredRole(NexusAdminRole actual, NexusAdminRole required)
-    {
-        return actual >= required;
-    }
-
-    private static void AddKey(List<ApiKeyBinding> keys, string key, NexusAdminRole role)
-    {
-        if (string.IsNullOrWhiteSpace(key) || key == "CHANGE_ME_LONG_RANDOM") return;
-        keys.Add(new ApiKeyBinding(key, role));
-    }
-
-    private static bool CryptographicEquals(string a, string b)
-    {
-        var ba = System.Text.Encoding.UTF8.GetBytes(a);
-        var bb = System.Text.Encoding.UTF8.GetBytes(b);
-        if (ba.Length != bb.Length) return false;
-        var diff = 0;
-        for (var i = 0; i < ba.Length; i++) diff |= ba[i] ^ bb[i];
-        return diff == 0;
-    }
-}
-
-public readonly record struct ApiKeyBinding(string Key, NexusAdminRole Role);
-
-public enum NexusAdminRole
-{
-    Viewer = 1,
-    Auditor = 2,
-    Admin = 3
 }
